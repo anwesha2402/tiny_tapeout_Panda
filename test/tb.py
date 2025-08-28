@@ -38,29 +38,19 @@ async def test_project(dut):
     except:
         dut._log.info("Output has unknown bits")
     
-    # Test 6-bit single channel input with dual leak features
+    # Test 6-bit single channel input
     dut.ui_in.value = 0x89  # input_enable=1, chan_a[4:0]=17 (bits 7:3)
     dut.uio_in.value = 0x01  # chan_a[5]=1, so chan_a=49 (6-bit)
-    await ClockCycles(dut.clk, 8)
-    
-    # Test high precision input values for dual leak neuron
-    dut.ui_in.value = 0xF9  # input_enable=1, chan_a[4:0]=31
-    dut.uio_in.value = 0x01  # chan_a[5]=1, so chan_a=63 (max 6-bit value)
-    await ClockCycles(dut.clk, 10)
-    
-    # Test configuration mode for dual leak parameters
-    dut.ui_in.value = 0x06  # load_mode=1, serial_data=1
-    dut.uio_in.value = 0x00
     await ClockCycles(dut.clk, 5)
     
-    # Test medium input for fixed threshold dynamics
-    dut.ui_in.value = 0x69  # input_enable=1, chan_a=51 (medium value)
-    dut.uio_in.value = 0x01  
-    await ClockCycles(dut.clk, 8)
+    # Test different 6-bit input values
+    dut.ui_in.value = 0xF9  # input_enable=1, chan_a[4:0]=31
+    dut.uio_in.value = 0x01  # chan_a[5]=1, so chan_a=63 (max 6-bit value)
+    await ClockCycles(dut.clk, 5)
     
-    # Test low input for dual leak equilibrium
-    dut.ui_in.value = 0x21  # input_enable=1, chan_a=16 (low value)
-    dut.uio_in.value = 0x00  
-    await ClockCycles(dut.clk, 6)
+    # Test configuration mode
+    dut.ui_in.value = 0x06  # load_mode=1, serial_data=1
+    dut.uio_in.value = 0x00
+    await ClockCycles(dut.clk, 3)
     
     dut._log.info("Test completed successfully")

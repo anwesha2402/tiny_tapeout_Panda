@@ -1,6 +1,4 @@
-`timescale 1ns / 1ps
-
-module lif_neuron_single_dualleak_data_loader (
+module lif_basic_single_data_loader (
     // System signals
     input wire clk,
     input wire reset,
@@ -12,23 +10,19 @@ module lif_neuron_single_dualleak_data_loader (
     
     // Outputs to LIF neuron
     output reg [2:0] weight_a,         // w_a parameter (single channel)
-    output reg [7:0] leak_rate_1,      // primary leak rate (8-bit precision)
-    output reg [7:0] leak_rate_2,      // secondary leak rate (8-bit precision)
+    output reg [7:0] leak_rate,        // single leak rate (8-bit precision)
     output reg [7:0] threshold,        // fixed threshold (non-adaptive)
-    output reg [3:0] leak_cycles_1,    // cycles for primary leak
-    output reg [3:0] leak_cycles_2,    // cycles for secondary leak
+    output reg [3:0] leak_cycles,      // cycles for leak operation
     output reg params_ready            // Parameters loaded and ready
 );
 
 // State machine for parameter loading
 parameter IDLE = 3'b000;
 parameter LOAD_WA = 3'b001;
-parameter LOAD_LEAK_RATE_1 = 3'b010;
-parameter LOAD_LEAK_RATE_2 = 3'b011;
-parameter LOAD_THRESHOLD = 3'b100;
-parameter LOAD_LEAK_CYCLES_1 = 3'b101;
-parameter LOAD_LEAK_CYCLES_2 = 3'b110;
-parameter READY = 3'b111;
+parameter LOAD_LEAK_RATE = 3'b010;
+parameter LOAD_THRESHOLD = 3'b011;
+parameter LOAD_LEAK_CYCLES = 3'b100;
+parameter READY = 3'b101;
 
 // Internal registers
 reg [7:0] shift_reg;
@@ -38,21 +32,17 @@ reg [2:0] next_state;
 
 // Default parameter values
 parameter DEFAULT_WA = 3'd2;               // Default weight A
-parameter DEFAULT_LEAK_RATE_1 = 8'd2;      // Default primary leak rate
-parameter DEFAULT_LEAK_RATE_2 = 8'd1;      // Default secondary leak rate
+parameter DEFAULT_LEAK_RATE = 8'd2;        // Default leak rate
 parameter DEFAULT_THRESHOLD = 8'd30;       // Default fixed threshold
-parameter DEFAULT_LEAK_CYCLES_1 = 4'd2;    // Default primary leak cycles
-parameter DEFAULT_LEAK_CYCLES_2 = 4'd4;    // Default secondary leak cycles
+parameter DEFAULT_LEAK_CYCLES = 4'd2;      // Default leak cycles
 
 // Sequential state transitions
 always @(*) begin
     case (current_state)
-        LOAD_WA: next_state = LOAD_LEAK_RATE_1;
-        LOAD_LEAK_RATE_1: next_state = LOAD_LEAK_RATE_2;
-        LOAD_LEAK_RATE_2: next_state = LOAD_THRESHOLD;
-        LOAD_THRESHOLD: next_state = LOAD_LEAK_CYCLES_1;
-        LOAD_LEAK_CYCLES_1: next_state = LOAD_LEAK_CYCLES_2;
-        LOAD_LEAK_CYCLES_2: next_state = READY;
+        LOAD_WA: next_state = LOAD_LEAK_RATE;
+        LOAD_LEAK_RATE: next_state = LOAD_THRESHOLD;
+        LOAD_THRESHOLD: next_state = LOAD_LEAK_CYCLES;
+        LOAD_LEAK_CYCLES: next_state = READY;
         default: next_state = IDLE;
     endcase
 end
@@ -64,11 +54,9 @@ always @(posedge clk) begin
         shift_reg <= 8'd0;
         bit_count <= 3'd0;
         weight_a <= DEFAULT_WA;
-        leak_rate_1 <= DEFAULT_LEAK_RATE_1;
-        leak_rate_2 <= DEFAULT_LEAK_RATE_2;
+        leak_rate <= DEFAULT_LEAK_RATE;
         threshold <= DEFAULT_THRESHOLD;
-        leak_cycles_1 <= DEFAULT_LEAK_CYCLES_1;
-        leak_cycles_2 <= DEFAULT_LEAK_CYCLES_2;
+        leak_cycles <= DEFAULT_LEAK_CYCLES;
         params_ready <= 1'b1;
     end else if (enable) begin
         case (current_state)
@@ -97,28 +85,12 @@ always @(posedge clk) begin
                 end
             end
             
-            LOAD_LEAK_RATE_1: begin
+            LOAD_LEAK_RATE: begin
                 if (load_enable) begin
                     shift_reg <= {shift_reg[6:0], serial_data_in};
                     bit_count <= bit_count + 1;
                     if (bit_count == 3'd7) begin
-                        leak_rate_1 <= {shift_reg[6:0], serial_data_in};
-                        current_state <= next_state;
-                        bit_count <= 3'd0;
-                        shift_reg <= 8'd0;
-                    end
-                end else begin
-                    current_state <= IDLE;
-                    params_ready <= 1'b1;
-                end
-            end
-            
-            LOAD_LEAK_RATE_2: begin
-                if (load_enable) begin
-                    shift_reg <= {shift_reg[6:0], serial_data_in};
-                    bit_count <= bit_count + 1;
-                    if (bit_count == 3'd7) begin
-                        leak_rate_2 <= {shift_reg[6:0], serial_data_in};
+                        leak_rate <= {shift_reg[6:0], serial_data_in};
                         current_state <= next_state;
                         bit_count <= 3'd0;
                         shift_reg <= 8'd0;
@@ -145,28 +117,12 @@ always @(posedge clk) begin
                 end
             end
             
-            LOAD_LEAK_CYCLES_1: begin
+            LOAD_LEAK_CYCLES: begin
                 if (load_enable) begin
                     shift_reg <= {shift_reg[6:0], serial_data_in};
                     bit_count <= bit_count + 1;
                     if (bit_count == 3'd7) begin
-                        leak_cycles_1 <= {shift_reg[2:0], serial_data_in};
-                        current_state <= next_state;
-                        bit_count <= 3'd0;
-                        shift_reg <= 8'd0;
-                    end
-                end else begin
-                    current_state <= IDLE;
-                    params_ready <= 1'b1;
-                end
-            end
-            
-            LOAD_LEAK_CYCLES_2: begin
-                if (load_enable) begin
-                    shift_reg <= {shift_reg[6:0], serial_data_in};
-                    bit_count <= bit_count + 1;
-                    if (bit_count == 3'd7) begin
-                        leak_cycles_2 <= {shift_reg[2:0], serial_data_in};
+                        leak_cycles <= {shift_reg[2:0], serial_data_in};
                         current_state <= READY;
                         params_ready <= 1'b1;
                     end
@@ -190,4 +146,3 @@ always @(posedge clk) begin
 end
 
 endmodule
-

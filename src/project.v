@@ -4,7 +4,7 @@
  */
 `default_nettype none
 
-module tt_um_lif_single_dualleak (
+module tt_um_lif_basic_single (
     input  wire [7:0] ui_in,    // Dedicated inputs
     output wire [7:0] uo_out,   // Dedicated outputs
     input  wire [7:0] uio_in,   // IOs: Input path
@@ -30,8 +30,8 @@ module tt_um_lif_single_dualleak (
     wire [6:0] v_mem_out;
     wire params_ready;
     
-    // LIF single dualleak system instantiation
-    lif_neuron_single_dualleak_system system_inst (
+    // LIF basic single system instantiation
+    lif_basic_single_system system_inst (
         // System signals
         .clk(clk),
         .reset(reset),
