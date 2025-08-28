@@ -5,7 +5,7 @@
 SIM ?= icarus
 TOPLEVEL_LANG ?= verilog
 SRC_DIR = $(PWD)/../src
-PROJECT_SOURCES = project.v
+PROJECT_SOURCES = project.v lif_neuron_dual_system.v lif_neuron_dual_neuron.v lif_neuron_dual_data_loader.v
 
 ifneq ($(GATES),yes)
 

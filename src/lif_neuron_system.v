@@ -1,14 +1,15 @@
 `timescale 1ns / 1ps
 
-module lif_neuron_system (
+module lif_neuron_single_dualleak_system (
     // System signals
     input wire clk,
     input wire reset,
     input wire enable,
+    input wire input_enable,  // Neuron operation control
     
-    // Input channels - INCREASED PRECISION (6 bits total)
-    input wire [5:0] chan_a,  // 6-bit precision
-
+    // Single input channel
+    input wire [5:0] chan_a,  // 6-bit precision (single channel only)
+    
     // Configuration interface
     input wire load_mode,
     input wire serial_data,
@@ -20,33 +21,41 @@ module lif_neuron_system (
 );
 
 // Internal parameter wires
-wire [2:0] weight;
-wire [1:0] leak_config;
+wire [2:0] weight_a;
+wire [7:0] leak_rate_1, leak_rate_2;
 wire [7:0] threshold;
+wire [3:0] leak_cycles_1, leak_cycles_2;
 wire loader_params_ready;
 
-// Data loader instance (unchanged)
-lif_data_loader loader (
+// Data loader instance
+lif_neuron_single_dualleak_data_loader loader (
     .clk(clk),
     .reset(reset),
     .enable(enable),
     .serial_data_in(serial_data),
     .load_enable(load_mode),
-    .weight(weight),
-    .leak_config(leak_config),
+    .weight_a(weight_a),
+    .leak_rate_1(leak_rate_1),
+    .leak_rate_2(leak_rate_2),
     .threshold(threshold),
+    .leak_cycles_1(leak_cycles_1),
+    .leak_cycles_2(leak_cycles_2),
     .params_ready(loader_params_ready)
 );
 
-// LIF neuron instance - UPDATED FOR 3-BIT CHANNELS
-lif_neuron neuron (
+// LIF neuron instance
+lif_neuron_single_dualleak_neuron neuron (
     .clk(clk),
     .reset(reset),
     .enable(enable),
-    .chan_a(chan_a),           // 6-bit input
-    .weight(weight),
-    .leak_config(leak_config),
+    .input_enable(input_enable),
+    .chan_a(chan_a),
+    .weight_a(weight_a),
+    .leak_rate_1(leak_rate_1),
+    .leak_rate_2(leak_rate_2),
     .threshold(threshold),
+    .leak_cycles_1(leak_cycles_1),
+    .leak_cycles_2(leak_cycles_2),
     .params_ready(loader_params_ready),
     .spike_out(spike_out),
     .v_mem_out(v_mem_out)
@@ -55,3 +64,4 @@ lif_neuron neuron (
 assign params_ready = loader_params_ready;
 
 endmodule
+
