@@ -1,14 +1,13 @@
 `timescale 1ns / 1ps
-
 module izh_neuron_core (
     input wire clk,
     input wire reset,
     input wire enable,
     input wire signed [7:0] stimulus_in,
-    input wire signed [15:0] param_a,
-    input wire signed [15:0] param_b,
-    input wire signed [15:0] param_c,
-    input wire signed [15:0] param_d,
+    input wire signed [11:0] param_a,  // Reduced from 16-bit to 12-bit
+    input wire signed [11:0] param_b,  // Reduced from 16-bit to 12-bit
+    input wire signed [11:0] param_c,  // Reduced from 16-bit to 12-bit
+    input wire signed [11:0] param_d,  // Reduced from 16-bit to 12-bit
     input wire params_ready,
     output reg spike_out,
     output wire [7:0] membrane_out
@@ -36,14 +35,13 @@ wire spike_detect = (v >= V_THRESH);
 // IZ equation: dv = 0.04v² + 5v + 140 - u + I
 assign v_squared = (v * v) >>> 8;  // Scale down to prevent overflow
 assign stimulus_scaled = stimulus_in * SCALE;
-
 assign dv_full = (v_squared >>> 6) +     // 0.04v² term (approximated)
                  (v * 5) +               // 5v term
                  CONST_140 -             // 140 constant
                  u +                     // -u term
                  stimulus_scaled;        // +I term
 
-// du = a(bv - u)
+// du = a(bv - u) with 12-bit parameters
 assign du_full = (param_a * ((param_b * v - (u << 8)) >>> 8)) >>> 8;
 
 // Limit derivatives
@@ -65,14 +63,12 @@ always @(posedge clk) begin
         v <= V_REST;
         u <= 16'sd0;
         spike_out <= 1'b0;
-//        $display("NEURON: Reset - v=%d, u=%d", V_REST, 16'sd0);
     end else if (enable && params_ready) begin
         if (spike_detect) begin
             // Spike occurred - apply reset
             v <= param_c;
             u <= u + param_d;
             spike_out <= 1'b1;
-//            $display("NEURON: SPIKE! Reset v to %d, u to %d", param_c, u + param_d);
         end else begin
             // Normal integration
             v <= v + (dv >>> 6);  // Integrate with smaller timestep
@@ -83,5 +79,4 @@ always @(posedge clk) begin
         spike_out <= 1'b0;
     end
 end
-
 endmodule
