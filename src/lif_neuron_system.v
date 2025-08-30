@@ -1,60 +1,66 @@
-module lif_basic_single_system (
-    // System signals
+`timescale 1ns / 1ps
+
+module izh_neuron_system (
     input wire clk,
     input wire reset,
     input wire enable,
-    input wire input_enable,  // Neuron operation control
     
-    // Single input channel
-    input wire [5:0] chan_a,  // 3-bit precision (single channel only)
+    // 8 Input pins
+    input wire [7:0] stimulus_in,
     
-    // Configuration interface
-    input wire load_mode,
-    input wire serial_data,
+    // 8 Output pins  
+    output wire [7:0] membrane_out,
     
-    // Outputs
-    output wire spike_out,
-    output wire [6:0] v_mem_out,
-    output wire params_ready
+    // 8 Inout pins
+    inout wire input_enable,
+    inout wire load_mode,
+    inout wire serial_data,
+    inout wire spike_out,
+    inout wire params_ready,
+    inout wire [2:0] debug_state
 );
 
-// Internal parameter wires
-wire [2:0] weight_a;
-wire [7:0] leak_rate;
-wire [7:0] threshold;
-wire [3:0] leak_cycles;
-wire loader_params_ready;
+    // Internal wiring
+    wire internal_input_enable = input_enable;
+    wire internal_load_mode = load_mode;
+    wire internal_serial_data = serial_data;
+    
+    wire [15:0] internal_param_a, internal_param_b, internal_param_c, internal_param_d;
+    wire loader_params_ready;
+    wire neuron_spike_out;
 
-// Data loader instance
-lif_basic_single_data_loader loader (
-    .clk(clk),
-    .reset(reset),
-    .enable(enable),
-    .serial_data_in(serial_data),
-    .load_enable(load_mode),
-    .weight_a(weight_a),
-    .leak_rate(leak_rate),
-    .threshold(threshold),
-    .leak_cycles(leak_cycles),
-    .params_ready(loader_params_ready)
-);
+    // Drive output inout pins
+    assign spike_out = neuron_spike_out;
+    assign params_ready = loader_params_ready;
+    assign debug_state = 3'b000; // Simple debug
 
-// LIF neuron instance
-lif_basic_single_neuron neuron (
-    .clk(clk),
-    .reset(reset),
-    .enable(enable),
-    .input_enable(input_enable),
-    .chan_a(chan_a),
-    .weight_a(weight_a),
-    .leak_rate(leak_rate),
-    .threshold(threshold),
-    .leak_cycles(leak_cycles),
-    .params_ready(loader_params_ready),
-    .spike_out(spike_out),
-    .v_mem_out(v_mem_out)
-);
+    // Data loader
+    iz_data_loader loader (
+        .clk(clk),
+        .reset(reset),
+        .enable(enable),
+        .serial_data_in(internal_serial_data),
+        .load_enable(internal_load_mode),
+        .param_a(internal_param_a),
+        .param_b(internal_param_b),
+        .param_c(internal_param_c),
+        .param_d(internal_param_d),
+        .params_ready(loader_params_ready)
+    );
 
-assign params_ready = loader_params_ready;
+    // Neuron core
+    izh_neuron_core neuron (
+        .clk(clk),
+        .reset(reset),
+        .enable(enable & internal_input_enable),
+        .stimulus_in(stimulus_in),
+        .param_a(internal_param_a),
+        .param_b(internal_param_b),
+        .param_c(internal_param_c),
+        .param_d(internal_param_d),
+        .params_ready(loader_params_ready),
+        .spike_out(neuron_spike_out),
+        .membrane_out(membrane_out)
+    );
 
 endmodule

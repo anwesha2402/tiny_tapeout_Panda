@@ -1,146 +1,143 @@
-module lif_basic_single_data_loader (
-    // System signals
+`timescale 1ns / 1ps
+
+module iz_data_loader (
     input wire clk,
     input wire reset,
     input wire enable,
-    
-    // Serial data input
     input wire serial_data_in,
     input wire load_enable,
-    
-    // Outputs to LIF neuron
-    output reg [2:0] weight_a,         // w_a parameter (single channel)
-    output reg [7:0] leak_rate,        // single leak rate (8-bit precision)
-    output reg [7:0] threshold,        // fixed threshold (non-adaptive)
-    output reg [3:0] leak_cycles,      // cycles for leak operation
-    output reg params_ready            // Parameters loaded and ready
+    output reg signed [15:0] param_a,
+    output reg signed [15:0] param_b,
+    output reg signed [15:0] param_c,
+    output reg signed [15:0] param_d,
+    output reg params_ready
 );
 
-// State machine for parameter loading
-parameter IDLE = 3'b000;
-parameter LOAD_WA = 3'b001;
-parameter LOAD_LEAK_RATE = 3'b010;
-parameter LOAD_THRESHOLD = 3'b011;
-parameter LOAD_LEAK_CYCLES = 3'b100;
-parameter READY = 3'b101;
+// State machine
+localparam IDLE = 3'b000;
+localparam LOAD_A = 3'b001;
+localparam LOAD_B = 3'b010;
+localparam LOAD_C = 3'b011;
+localparam LOAD_D = 3'b100;
+localparam READY = 3'b101;
 
 // Internal registers
-reg [7:0] shift_reg;
-reg [2:0] bit_count;
-reg [2:0] current_state;
-reg [2:0] next_state;
+reg [15:0] shift_reg;
+reg [4:0] bit_count;  // 5 bits to handle 16-bit parameters
+reg [2:0] state;
+reg load_enable_prev;
 
-// Default parameter values
-parameter DEFAULT_WA = 3'd2;               // Default weight A
-parameter DEFAULT_LEAK_RATE = 8'd2;        // Default leak rate
-parameter DEFAULT_THRESHOLD = 8'd30;       // Default fixed threshold
-parameter DEFAULT_LEAK_CYCLES = 4'd2;      // Default leak cycles
+// Edge detection
+wire load_enable_rising = load_enable & ~load_enable_prev;
 
-// Sequential state transitions
-always @(*) begin
-    case (current_state)
-        LOAD_WA: next_state = LOAD_LEAK_RATE;
-        LOAD_LEAK_RATE: next_state = LOAD_THRESHOLD;
-        LOAD_THRESHOLD: next_state = LOAD_LEAK_CYCLES;
-        LOAD_LEAK_CYCLES: next_state = READY;
-        default: next_state = IDLE;
-    endcase
+// Default IZ parameters (Regular Spiking neuron)
+localparam signed [15:0] DEFAULT_A = 16'sd51;      // 0.2 * 256
+localparam signed [15:0] DEFAULT_B = 16'sd51;      // 0.2 * 256  
+localparam signed [15:0] DEFAULT_C = -16'sd16640;  // -65 * 256
+localparam signed [15:0] DEFAULT_D = 16'sd512;     // 2 * 256
+
+always @(posedge clk) begin
+    if (reset)
+        load_enable_prev <= 1'b0;
+    else
+        load_enable_prev <= load_enable;
 end
 
-// State machine and serial loading logic
+// Corrected state machine with proper 16-bit loading
 always @(posedge clk) begin
     if (reset) begin
-        current_state <= IDLE;
-        shift_reg <= 8'd0;
-        bit_count <= 3'd0;
-        weight_a <= DEFAULT_WA;
-        leak_rate <= DEFAULT_LEAK_RATE;
-        threshold <= DEFAULT_THRESHOLD;
-        leak_cycles <= DEFAULT_LEAK_CYCLES;
+        state <= IDLE;
+        shift_reg <= 16'd0;
+        bit_count <= 5'd0;
+        param_a <= DEFAULT_A;
+        param_b <= DEFAULT_B;
+        param_c <= DEFAULT_C;
+        param_d <= DEFAULT_D;
         params_ready <= 1'b1;
     end else if (enable) begin
-        case (current_state)
+        case (state)
             IDLE: begin
-                if (load_enable) begin
-                    current_state <= LOAD_WA;
-                    bit_count <= 3'd0;
-                    shift_reg <= 8'd0;
+                if (load_enable_rising) begin
+                    state <= LOAD_A;
+                    bit_count <= 5'd0;
+                    shift_reg <= 16'd0;
                     params_ready <= 1'b0;
+//                    $display("LOADER: Starting parameter loading");
                 end
             end
             
-            LOAD_WA: begin
+            LOAD_A: begin
                 if (load_enable) begin
-                    shift_reg <= {shift_reg[6:0], serial_data_in};
+                    shift_reg <= {shift_reg[14:0], serial_data_in};
                     bit_count <= bit_count + 1;
-                    if (bit_count == 3'd7) begin
-                        weight_a <= {shift_reg[1:0], serial_data_in};
-                        current_state <= next_state;
-                        bit_count <= 3'd0;
-                        shift_reg <= 8'd0;
+                    
+                    if (bit_count == 5'd15) begin
+                        param_a <= {shift_reg[14:0], serial_data_in};
+                        state <= LOAD_B;
+                        bit_count <= 5'd0;
+                        shift_reg <= 16'd0;
+//                        $display("LOADER: param_a loaded = %d", {shift_reg[14:0], serial_data_in});
                     end
-                end else begin
-                    current_state <= IDLE;
-                    params_ready <= 1'b1;
                 end
             end
             
-            LOAD_LEAK_RATE: begin
+            LOAD_B: begin
                 if (load_enable) begin
-                    shift_reg <= {shift_reg[6:0], serial_data_in};
+                    shift_reg <= {shift_reg[14:0], serial_data_in};
                     bit_count <= bit_count + 1;
-                    if (bit_count == 3'd7) begin
-                        leak_rate <= {shift_reg[6:0], serial_data_in};
-                        current_state <= next_state;
-                        bit_count <= 3'd0;
-                        shift_reg <= 8'd0;
+                    
+                    if (bit_count == 5'd15) begin
+                        param_b <= {shift_reg[14:0], serial_data_in};
+                        state <= LOAD_C;
+                        bit_count <= 5'd0;
+                        shift_reg <= 16'd0;
+//                        $display("LOADER: param_b loaded = %d", {shift_reg[14:0], serial_data_in});
                     end
-                end else begin
-                    current_state <= IDLE;
-                    params_ready <= 1'b1;
                 end
             end
             
-            LOAD_THRESHOLD: begin
+            LOAD_C: begin
                 if (load_enable) begin
-                    shift_reg <= {shift_reg[6:0], serial_data_in};
+                    shift_reg <= {shift_reg[14:0], serial_data_in};
                     bit_count <= bit_count + 1;
-                    if (bit_count == 3'd7) begin
-                        threshold <= {shift_reg[6:0], serial_data_in};
-                        current_state <= next_state;
-                        bit_count <= 3'd0;
-                        shift_reg <= 8'd0;
+                    
+                    if (bit_count == 5'd15) begin
+                        param_c <= {shift_reg[14:0], serial_data_in};
+                        state <= LOAD_D;
+                        bit_count <= 5'd0;
+                        shift_reg <= 16'd0;
+                        $display("LOADER: param_c loaded = %d", $signed({shift_reg[14:0], serial_data_in}));
                     end
-                end else begin
-                    current_state <= IDLE;
-                    params_ready <= 1'b1;
                 end
             end
             
-            LOAD_LEAK_CYCLES: begin
+            LOAD_D: begin
                 if (load_enable) begin
-                    shift_reg <= {shift_reg[6:0], serial_data_in};
+                    shift_reg <= {shift_reg[14:0], serial_data_in};
                     bit_count <= bit_count + 1;
-                    if (bit_count == 3'd7) begin
-                        leak_cycles <= {shift_reg[2:0], serial_data_in};
-                        current_state <= READY;
+                    
+                    if (bit_count == 5'd15) begin
+                        param_d <= {shift_reg[14:0], serial_data_in};
+                        state <= READY;
                         params_ready <= 1'b1;
+//                        $display("LOADER: param_d loaded = %d", {shift_reg[14:0], serial_data_in});
+//                        $display("LOADER: All parameters loaded!");
                     end
-                end else begin
-                    current_state <= IDLE;
-                    params_ready <= 1'b1;
                 end
             end
             
             READY: begin
-                if (!load_enable) begin
-                    current_state <= IDLE;
+                if (load_enable_rising) begin
+                    state <= LOAD_A;
+                    bit_count <= 5'd0;
+                    shift_reg <= 16'd0;
+                    params_ready <= 1'b0;
+                end else if (!load_enable) begin
+                    state <= IDLE;
                 end
             end
             
-            default: begin
-                current_state <= IDLE;
-            end
+            default: state <= IDLE;
         endcase
     end
 end

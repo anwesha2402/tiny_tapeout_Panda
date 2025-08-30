@@ -4,7 +4,7 @@
  */
 `default_nettype none
 
-module tt_um_wokwi_434925031692840961 (
+module tt_um_izh_neuron_system (
     input  wire [7:0] ui_in,    // Dedicated inputs
     output wire [7:0] uo_out,   // Dedicated outputs
     input  wire [7:0] uio_in,   // IOs: Input path
@@ -20,50 +20,58 @@ module tt_um_wokwi_434925031692840961 (
     wire enable = ena;             // Use enable signal
     
     // Input signal assignments from TinyTapeout interface
-    wire input_enable = ui_in[0];  // Neuron operation control
-    wire load_mode   = ui_in[1];   // Configuration mode control
-    wire serial_data = ui_in[2];   // Serial configuration data input
-    wire [5:0] chan_a = {uio_in[0], ui_in[7:3]}; // Channel A (6-bit single channel input)
+    wire [7:0] stimulus_in = ui_in; // 8-bit stimulus input directly mapped
     
     // Internal output wires from system module
-    wire spike_out;
-    wire [6:0] v_mem_out;
-    wire params_ready;
+    wire [7:0] membrane_out;
     
-    // LIF basic single system instantiation
-    lif_basic_single_system system_inst (
+    // Bidirectional signal management
+    wire input_enable_in = uio_in[0];
+    wire load_mode_in = uio_in[1]; 
+    wire serial_data_in = uio_in[2];
+    
+    wire spike_out_internal;
+    wire params_ready_internal;
+    wire [2:0] debug_state_internal;
+    
+    // Izhikevich neuron system instantiation
+    izh_neuron_system system_inst (
         // System signals
         .clk(clk),
         .reset(reset),
         .enable(enable),
-        .input_enable(input_enable),
         
-        // Single input channel (6-bit)
-        .chan_a(chan_a),
+        // 8 Input pins
+        .stimulus_in(stimulus_in),
         
-        // Configuration interface
-        .load_mode(load_mode),
-        .serial_data(serial_data),
+        // 8 Output pins  
+        .membrane_out(membrane_out),
         
-        // Outputs
-        .spike_out(spike_out),
-        .v_mem_out(v_mem_out),
-        .params_ready(params_ready)
+        // 8 Inout pins (handled as separate input/output)
+        .input_enable(input_enable_in),
+        .load_mode(load_mode_in),
+        .serial_data(serial_data_in),
+        .spike_out(spike_out_internal),
+        .params_ready(params_ready_internal),
+        .debug_state(debug_state_internal)
     );
     
     // Output signal assignments to TinyTapeout interface
-    assign uo_out[0] = spike_out;           // Spike output signal
-    assign uo_out[7:1] = v_mem_out;         // 7-bit membrane potential output
+    assign uo_out = membrane_out;           // 8-bit membrane potential output
     
     // Bidirectional I/O configuration
-    assign uio_out[0] = params_ready;       // Parameter ready status as output
-    assign uio_out[7:1] = 7'b0;             // Unused bidirectional outputs set to 0
+    assign uio_out[0] = spike_out_internal;         // Spike output
+    assign uio_out[1] = params_ready_internal;      // Parameter ready status
+    assign uio_out[4:2] = debug_state_internal;     // 3-bit debug state
+    assign uio_out[7:5] = 3'b0;                     // Unused outputs set to 0
     
     // Set bidirectional pin directions
-    assign uio_oe[0] = 1'b1;                // uio[0] used for params_ready output
-    assign uio_oe[7:1] = 7'b0;              // uio[7:1] set as inputs (chan_a[5] uses uio_in[0])
+    assign uio_oe[0] = 1'b1;                // spike_out as output
+    assign uio_oe[1] = 1'b1;                // params_ready as output  
+    assign uio_oe[4:2] = 3'b111;            // debug_state as outputs
+    assign uio_oe[7:5] = 3'b0;              // unused pins as inputs
     
     // List unused inputs to prevent warnings
-    wire _unused = &{uio_in[7:1], 1'b0};
+    wire _unused = &{uio_in[7:3], 1'b0};
 
 endmodule
