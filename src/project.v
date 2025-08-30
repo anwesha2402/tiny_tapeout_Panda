@@ -4,7 +4,7 @@
  */
 `default_nettype none
 
-module tt_um_izh_neuron_system (
+module tt_um_izh_neuron_system_lite (
     input  wire [7:0] ui_in,    // Dedicated inputs
     output wire [7:0] uo_out,   // Dedicated outputs
     input  wire [7:0] uio_in,   // IOs: Input path
@@ -34,8 +34,8 @@ module tt_um_izh_neuron_system (
     wire params_ready_internal;
     wire [2:0] debug_state_internal;
     
-    // Izhikevich neuron system instantiation
-    izh_neuron_system system_inst (
+    // Izhikevich neuron lite system instantiation
+    izh_neuron_system_lite system_inst (
         // System signals
         .clk(clk),
         .reset(reset),

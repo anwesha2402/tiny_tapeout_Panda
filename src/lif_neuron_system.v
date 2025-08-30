@@ -1,5 +1,6 @@
 `timescale 1ns / 1ps
-module izh_neuron_system (
+
+module izh_neuron_system_lite (
     input wire clk,
     input wire reset,
     input wire enable,
@@ -18,22 +19,23 @@ module izh_neuron_system (
     inout wire params_ready,
     inout wire [2:0] debug_state
 );
+
     // Internal wiring
     wire internal_input_enable = input_enable;
     wire internal_load_mode = load_mode;
     wire internal_serial_data = serial_data;
     
-    wire signed [11:0] internal_param_a, internal_param_b, internal_param_c, internal_param_d;  // Updated to 12-bit
+    wire [7:0] internal_param_a, internal_param_b, internal_param_c, internal_param_d;
     wire loader_params_ready;
     wire neuron_spike_out;
-    
+
     // Drive output inout pins
     assign spike_out = neuron_spike_out;
     assign params_ready = loader_params_ready;
-    assign debug_state = 3'b000; // Simple debug
-    
-    // Data loader with 12-bit parameters
-    iz_data_loader loader (
+    assign debug_state = 3'b000;
+
+    // Enhanced data loader
+    iz_data_loader_lite loader (
         .clk(clk),
         .reset(reset),
         .enable(enable),
@@ -45,9 +47,9 @@ module izh_neuron_system (
         .param_d(internal_param_d),
         .params_ready(loader_params_ready)
     );
-    
-    // Neuron core with 12-bit parameters
-    izh_neuron_core neuron (
+
+    // Enhanced neuron core
+    izh_neuron_lite neuron (
         .clk(clk),
         .reset(reset),
         .enable(enable & internal_input_enable),
@@ -60,4 +62,5 @@ module izh_neuron_system (
         .spike_out(neuron_spike_out),
         .membrane_out(membrane_out)
     );
+
 endmodule

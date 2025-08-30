@@ -10,7 +10,7 @@ project:      # Set this to the ID of your Wokwi project (the number from the pr
   # How many tiles your design occupies? A single tile is about 167x108 uM.
   tiles: "1x2"          # Valid values: 1x1, 1x2, 2x2, 3x2, 4x2, 6x2 or 8x2
   # name: tt_um_wokwi_434925031692840961, tt_um_lif_basic_single
-  top_module:  "tt_um_izh_neuron_system"
+  top_module:  "tt_um_izh_neuron_system_lite"
 
   source_files:
     - "project.v"
